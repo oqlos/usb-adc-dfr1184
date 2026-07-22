@@ -1,0 +1,39 @@
+schema_version: 1
+id: dfr1184
+manufacturer: DFRobot
+product: Gravity 2-Channel 15-Bit 0-10V ADC Module
+adc_chip: ADS1115
+transport:
+  primary: UART
+  host: Raspberry Pi 3
+  serial_port: /dev/serial0
+  baudrate: 9600
+  data_bits: 8
+  parity: none
+  stop_bits: 1
+  alternate_not_used: I2C
+uart_protocol:
+  probe_request_ascii: "AT\\r\\n"
+  probe_response_ascii: "OK\\r\\n"
+  write_prefix: "0xcc"
+  read_prefix: "0xbb"
+  channel_select_register: "0x20"
+  channel_data_register: "0x31"
+  result_bytes: 3
+channels:
+  - {id: 1, name: AIN1, range_volts: [0, 10]}
+  - {id: 2, name: AIN2, range_volts: [0, 10]}
+measurement:
+  effective_bits: 15
+  nominal_resolution_millivolts: 0.3125
+  reported_unit_millivolts: 0.01
+  stated_error_millivolts: "<2"
+power:
+  voltage_range: [3.3, 5.0]
+safety:
+  galvanically_isolated: false
+  power_off_before_mode_or_address_switch: true
+sources:
+  - https://wiki.dfrobot.com/dfr1184/
+  - https://github.com/DFRobot/DFRobot_ADS1115_0_10V
+  - https://kamami.pl/przetworniki-ac-i-ca/1201305-modul-adc-dfrobot-dfr1184-gravity-010-v-15-bit-dwukanalowy-do-arduino-raspberry-pi-esp32-5902186330115.html

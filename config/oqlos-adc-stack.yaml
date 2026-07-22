@@ -1,0 +1,20 @@
+schema_version: 1
+name: boardnet-usb-adc-stack
+channels:
+  ai01:
+    adapter: usb-adc-mcp2221
+    endpoint: http://127.0.0.1:8214/api/v1/adc/1
+    physical_input: MCP2221A.G1
+    nominal_range_volts: [0, 3.3]
+  ai02:
+    adapter: usb-adc-dfr1184
+    endpoint: http://127.0.0.1:8214/api/v1/adc/2
+    physical_input: DFR1184.AIN1
+    transport: /dev/serial0@9600
+    nominal_range_volts: [0, 10]
+  ai03:
+    adapter: usb-adc-dfr1184
+    endpoint: http://127.0.0.1:8214/api/v1/adc/3
+    physical_input: DFR1184.AIN2
+    transport: /dev/serial0@9600
+    nominal_range_volts: [0, 10]

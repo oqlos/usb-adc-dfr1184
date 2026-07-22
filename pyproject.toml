@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "usb-adc-dfr1184"
+version = "0.1.0"
+description = "DFRobot DFR1184 0-10 V UART ADC adapter for Raspberry Pi 3 and OqlOS"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "OqlOS Team" }]
+keywords = ["dfr1184", "ads1115", "raspberry-pi", "uart", "adc", "0-10v", "oqlos"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: System :: Hardware",
+]
+dependencies = [
+  "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+api = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
+dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10", "build>=1.2"]
+
+[project.scripts]
+usb-adc-dfr1184 = "usb_adc_dfr1184.cli:main"
+usb-adc-dfr1184-api = "usb_adc_dfr1184.service:main"
+usb-adc-stack-api = "usb_adc_dfr1184.stack_service:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+packages = ["usb_adc_dfr1184"]
