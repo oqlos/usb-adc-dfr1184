@@ -86,6 +86,9 @@ Szczegóły zawiera [docs/OQLOS_INTEGRATION.md](docs/OQLOS_INTEGRATION.md).
 Nie uruchamiaj jednocześnie wspólnej i samodzielnych usług na tych samych fizycznych
 urządzeniach.
 
+Gotowa jednostka użytkownika systemd dla BoardNet znajduje się w
+`deploy/systemd/usb-adc-stack.service`.
+
 ## Ograniczenia
 
 - `0,01 mV` jest jednostką raportowania protokołu, nie fizyczną rozdzielczością.
