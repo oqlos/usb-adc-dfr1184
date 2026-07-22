@@ -25,7 +25,7 @@ class DFR1184Backend(Protocol):
 
 def _default_serial_factory(port: str, baudrate: int, timeout: float) -> Any:
     try:
-        import serial  # type: ignore[import-untyped]
+        import serial
     except ImportError as error:
         raise DFR1184UnavailableError(
             "install the UART dependency with: pip install pyserial"
