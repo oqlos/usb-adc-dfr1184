@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
+from types import ModuleType
 from typing import Any
 
 import pytest
 
 from usb_adc_dfr1184.driver import DFR1184
 from usb_adc_dfr1184.models import HealthStatus
-from usb_adc_dfr1184.stack import ADCStack
+from usb_adc_dfr1184.stack import ADCStack, _default_mcp2221
 
 from .test_driver import FakeBackend
 
@@ -62,3 +64,42 @@ def test_stack_health_and_validation() -> None:
     assert stack.health()["ok"] is True
     with pytest.raises(ValueError, match="1, 2 or 3"):
         stack.read_adc(4)
+
+
+def test_default_stack_passes_environment_to_mcp2221(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+    module = ModuleType("usb_adc_mcp2221")
+
+    class Config:
+        def __init__(self, **kwargs: Any) -> None:
+            captured.update(kwargs)
+
+    class Driver:
+        def __init__(self, config: Config) -> None:
+            self.config = config
+
+    module.MCP2221 = Driver
+    module.MCP2221Config = Config
+    monkeypatch.setitem(sys.modules, "usb_adc_mcp2221", module)
+    monkeypatch.setenv("MCP2221_REFERENCE_VOLTAGE", "3.28")
+    monkeypatch.setenv("MCP2221_BACKEND", "easy")
+    monkeypatch.setenv("MCP2221_DEVICE_INDEX", "1")
+    monkeypatch.setenv("MCP2221_USB_SERIAL", "sensor-a")
+    monkeypatch.setenv("MCP2221_SCAN_SERIAL", "true")
+    monkeypatch.setenv("MCP2221_OPEN_TIMEOUT", "1.5")
+    monkeypatch.setenv("MCP2221_READ_TIMEOUT_MS", "200")
+    monkeypatch.setenv("MCP2221_COMMAND_RETRIES", "1")
+
+    driver = _default_mcp2221()
+
+    assert isinstance(driver, Driver)
+    assert captured == {
+        "reference_voltage": 3.28,
+        "backend": "easy",
+        "device_index": 1,
+        "usb_serial": "sensor-a",
+        "scan_serial": True,
+        "open_timeout": 1.5,
+        "read_timeout_ms": 200,
+        "command_retries": 1,
+    }

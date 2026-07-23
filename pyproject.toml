@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "usb-adc-dfr1184"
-version = "0.1.0"
+version = "0.2.0"
 description = "DFRobot DFR1184 0-10 V UART ADC adapter for Raspberry Pi 3 and OqlOS"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 authors = [{ name = "OqlOS Team" }]
 keywords = ["dfr1184", "ads1115", "raspberry-pi", "uart", "adc", "0-10v", "oqlos"]
 classifiers = [
@@ -23,6 +23,7 @@ classifiers = [
 ]
 dependencies = [
   "pyserial>=3.5",
+  "usb-adc-mcp2221>=0.2.0",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +46,7 @@ addopts = "-q"
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+exclude = ["vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

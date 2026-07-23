@@ -9,6 +9,10 @@ Environment=DFR1184_SERIAL_PORT=/dev/serial0
 Environment=DFR1184_BAUDRATE=9600
 Environment=DFR1184_UART_TIMEOUT=1.0
 Environment=MCP2221_REFERENCE_VOLTAGE=3.3
+Environment=MCP2221_BACKEND=easy
+Environment=MCP2221_OPEN_TIMEOUT=1.0
+Environment=MCP2221_READ_TIMEOUT_MS=250
+Environment=MCP2221_COMMAND_RETRIES=0
 Environment=USB_ADC_STACK_API_HOST=127.0.0.1
 Environment=USB_ADC_STACK_API_PORT=8214
 ExecStart=/home/pi/oqlos-adapters/.venv/bin/usb-adc-stack-api

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from typing import Any, Protocol, cast
 
@@ -27,12 +28,28 @@ class MCP2221Driver(Protocol):
 
 def _default_mcp2221() -> MCP2221Driver:
     try:
-        from usb_adc_mcp2221 import MCP2221  # type: ignore[import-not-found]
+        from usb_adc_mcp2221 import MCP2221, MCP2221Config  # type: ignore[import-not-found]
     except ImportError as error:
         raise RuntimeError(
             "install the sibling MCP2221A driver first: pip install -e ../usb-adc-mcp2221"
         ) from error
-    return cast(MCP2221Driver, MCP2221())
+    scan_serial = os.getenv("MCP2221_SCAN_SERIAL", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    config = MCP2221Config(
+        reference_voltage=float(os.getenv("MCP2221_REFERENCE_VOLTAGE", "3.3")),
+        backend=os.getenv("MCP2221_BACKEND", "easy"),
+        device_index=int(os.getenv("MCP2221_DEVICE_INDEX", "0")),
+        usb_serial=os.getenv("MCP2221_USB_SERIAL") or None,
+        scan_serial=scan_serial,
+        open_timeout=float(os.getenv("MCP2221_OPEN_TIMEOUT", "1.0")),
+        read_timeout_ms=int(os.getenv("MCP2221_READ_TIMEOUT_MS", "250")),
+        command_retries=int(os.getenv("MCP2221_COMMAND_RETRIES", "0")),
+    )
+    return cast(MCP2221Driver, MCP2221(config))
 
 
 class ADCStack:

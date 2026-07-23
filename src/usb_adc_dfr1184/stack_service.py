@@ -30,7 +30,7 @@ def create_app(stack: ADCStack | None = None) -> Any:
     )
     app = FastAPI(
         title="OqlOS USB ADC Stack",
-        version="0.1.0",
+        version="0.2.0",
         description="MCP2221A USB G1 and Raspberry Pi UART DFR1184 AIN1/AIN2 API",
     )
 
