@@ -1,5 +1,20 @@
 # usb-adc-dfr1184
 
+![img.png](img.png)
+https://kamami.pl/przetworniki-ac-i-ca/1201305-modul-adc-dfrobot-dfr1184-gravity-010-v-15-bit-dwukanalowy-do-arduino-raspberry-pi-esp32-5902186330115.html
+
+
+![img_1.png](img_1.png)
+https://dfimg.dfrobot.com/wiki/19341/DFR1184_2-ch-15bit-0-10v-adc_schematics_1.0.pdf
+
+![img_2.png](img_2.png)
+
+https://www.arduitronics.com/product/4446/gravity-uart-i2c-nfc-module-%E0%B9%81%E0%B8%97%E0%B9%89%E0%B8%88%E0%B8%B2%E0%B8%81-dfrobot
+
+![img_3.png](img_3.png)
+
+![img_4.png](img_4.png)
+
 Sterownik i lokalny adapter HTTP dla dwukanałowego modułu **DFRobot DFR1184
 Gravity 0–10 V**, podłączonego bezpośrednio do **UART Raspberry Pi 3**.
 
