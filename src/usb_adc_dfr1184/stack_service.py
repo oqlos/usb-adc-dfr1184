@@ -13,6 +13,16 @@ from .stack import ADCStack
 T = TypeVar("T")
 
 
+def dfr1184_config_from_environment() -> DFR1184Config:
+    """Build the UART profile once, keeping hardware timing deploy-configurable."""
+    return DFR1184Config(
+        serial_port=os.getenv("DFR1184_SERIAL_PORT", "/dev/serial0"),
+        baudrate=int(os.getenv("DFR1184_BAUDRATE", "9600")),
+        timeout=float(os.getenv("DFR1184_UART_TIMEOUT", "1.0")),
+        command_delay=float(os.getenv("DFR1184_COMMAND_DELAY", "0.015")),
+    )
+
+
 def create_app(stack: ADCStack | None = None) -> Any:
     try:
         from fastapi import FastAPI, HTTPException, Query
@@ -20,13 +30,7 @@ def create_app(stack: ADCStack | None = None) -> Any:
         raise RuntimeError("install the API dependencies with: pip install '.[api]'") from error
 
     adc_stack = stack or ADCStack(
-        dfr1184=DFR1184(
-            DFR1184Config(
-                serial_port=os.getenv("DFR1184_SERIAL_PORT", "/dev/serial0"),
-                baudrate=int(os.getenv("DFR1184_BAUDRATE", "9600")),
-                timeout=float(os.getenv("DFR1184_UART_TIMEOUT", "1.0")),
-            )
-        )
+        dfr1184=DFR1184(dfr1184_config_from_environment())
     )
     app = FastAPI(
         title="OqlOS USB ADC Stack",

@@ -2,11 +2,41 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import os
-import threading
-from typing import Any, Protocol, cast
+from typing import Any, Callable, Protocol, TypeVar, cast
 
 from .driver import DFR1184
+
+T = TypeVar("T")
+
+OPERATION_TIMEOUT_SECONDS = float(os.getenv("USB_ADC_STACK_OPERATION_TIMEOUT", "2.5"))
+
+
+def _run_with_timeout(
+    operation: Callable[[], T],
+    *,
+    timeout: float | None = None,
+) -> T:
+    limit = OPERATION_TIMEOUT_SECONDS if timeout is None else timeout
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(operation)
+    try:
+        return future.result(timeout=limit)
+    finally:
+        # Do not wait on timed-out USB/UART work; otherwise /health blocks forever.
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _degraded_channel(channel: int, adapter: str, physical_input: str, error: str) -> dict[str, Any]:
+    return {
+        "logical_channel": channel,
+        "logical_name": f"ai{channel:02d}",
+        "adapter": adapter,
+        "physical_input": physical_input,
+        "ok": False,
+        "error": error,
+    }
 
 
 class SerializableReading(Protocol):
@@ -62,7 +92,6 @@ class ADCStack:
     ) -> None:
         self.mcp2221 = mcp2221 or _default_mcp2221()
         self.dfr1184 = dfr1184 or DFR1184()
-        self._lock = threading.RLock()
 
     @staticmethod
     def _channel(channel: int) -> int:
@@ -73,14 +102,18 @@ class ADCStack:
     def _read_unlocked(self, channel: int, samples: int) -> dict[str, Any]:
         if channel == 1:
             reading = self.mcp2221.read_adc(1, samples=samples)
-            adapter = "usb-adc-mcp2221"
-            physical_input = "MCP2221A.G1"
-            nominal_range = [0, 3.3]
         else:
             reading = self.dfr1184.read_adc(channel - 1, samples=samples)
-            adapter = "usb-adc-dfr1184"
-            physical_input = f"DFR1184.AIN{channel - 1}"
-            nominal_range = [0, 10]
+        return self._format_reading(channel, reading)
+
+    @staticmethod
+    def _format_reading(
+        channel: int,
+        reading: SerializableReading,
+    ) -> dict[str, Any]:
+        adapter = "usb-adc-mcp2221" if channel == 1 else "usb-adc-dfr1184"
+        physical_input = "MCP2221A.G1" if channel == 1 else f"DFR1184.AIN{channel - 1}"
+        nominal_range = [0, 3.3] if channel == 1 else [0, 10]
         return {
             "logical_channel": channel,
             "logical_name": f"ai{channel:02d}",
@@ -94,24 +127,89 @@ class ADCStack:
         channel = self._channel(channel)
         if not 1 <= samples <= 10_000:
             raise ValueError("samples must be between 1 and 10000")
-        with self._lock:
-            return self._read_unlocked(channel, samples)
+        return _run_with_timeout(lambda: self._read_unlocked(channel, samples))
 
     def read_all_adc(self, samples: int = 1) -> list[dict[str, Any]]:
         if not 1 <= samples <= 10_000:
             raise ValueError("samples must be between 1 and 10000")
-        with self._lock:
-            return [self._read_unlocked(channel, samples) for channel in (1, 2, 3)]
+        # MCP2221 and DFR1184 are independent transports and may run in
+        # parallel. AIN1/AIN2 share one UART, so read them as one serialized
+        # operation instead of creating competing per-channel worker pools.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            mcp_future = executor.submit(self._read_channel_for_batch, 1, samples)
+            dfr_future = executor.submit(self._read_dfr_channels_for_batch, samples)
+            return [mcp_future.result(), *dfr_future.result()]
+
+    def _read_dfr_channels_for_batch(self, samples: int) -> list[dict[str, Any]]:
+        try:
+            readings = _run_with_timeout(
+                lambda: self.dfr1184.read_all_adc(samples=samples)
+            )
+            return [
+                self._format_reading(channel, reading)
+                for channel, reading in zip((2, 3), readings, strict=True)
+            ]
+        except concurrent.futures.TimeoutError:
+            error = (
+                "usb-adc-dfr1184 read timed out after "
+                f"{OPERATION_TIMEOUT_SECONDS:.1f}s"
+            )
+        except (RuntimeError, OSError) as caught:
+            error = str(caught)
+        return [
+            _degraded_channel(
+                channel,
+                "usb-adc-dfr1184",
+                f"DFR1184.AIN{channel - 1}",
+                error,
+            )
+            for channel in (2, 3)
+        ]
+
+    def _read_channel_for_batch(self, channel: int, samples: int) -> dict[str, Any]:
+        adapter = "usb-adc-mcp2221" if channel == 1 else "usb-adc-dfr1184"
+        physical_input = "MCP2221A.G1" if channel == 1 else f"DFR1184.AIN{channel - 1}"
+        try:
+            return _run_with_timeout(lambda: self._read_unlocked(channel, samples))
+        except concurrent.futures.TimeoutError:
+            return _degraded_channel(
+                channel,
+                adapter,
+                physical_input,
+                f"{adapter} read timed out after {OPERATION_TIMEOUT_SECONDS:.1f}s",
+            )
+        except (RuntimeError, OSError) as error:
+            return _degraded_channel(channel, adapter, physical_input, str(error))
+
+    def _component_health(
+        self,
+        name: str,
+        operation: Callable[[], SerializableHealth],
+    ) -> dict[str, Any]:
+        try:
+            return _run_with_timeout(operation).to_dict()
+        except concurrent.futures.TimeoutError:
+            return {
+                "ok": False,
+                "status": "timeout",
+                "message": f"{name} health timed out after {OPERATION_TIMEOUT_SECONDS:.1f}s",
+            }
 
     def health(self) -> dict[str, Any]:
-        with self._lock:
-            mcp_health = self.mcp2221.health()
-            dfr_health = self.dfr1184.health()
-            return {
-                "ok": mcp_health.ok and dfr_health.ok,
-                "status": "connected" if mcp_health.ok and dfr_health.ok else "degraded",
-                "components": {
-                    "usb-adc-mcp2221": mcp_health.to_dict(),
-                    "usb-adc-dfr1184": dfr_health.to_dict(),
-                },
-            }
+        mcp_health = self._component_health(
+            "usb-adc-mcp2221",
+            self.mcp2221.health,
+        )
+        dfr_health = self._component_health(
+            "usb-adc-dfr1184",
+            self.dfr1184.health,
+        )
+        ok = bool(mcp_health.get("ok")) and bool(dfr_health.get("ok"))
+        return {
+            "ok": ok,
+            "status": "connected" if ok else "degraded",
+            "components": {
+                "usb-adc-mcp2221": mcp_health,
+                "usb-adc-dfr1184": dfr_health,
+            },
+        }

@@ -131,3 +131,9 @@ class DFR1184:
             "baudrate": self.config.baudrate,
             "protocol": {"probe": "AT\\r\\n", "read": "0xbb", "write": "0xcc"},
         }
+
+    def close(self) -> None:
+        """Release a persistent UART backend when the owning service stops."""
+        close_backend = getattr(self.backend, "close", None)
+        if callable(close_backend):
+            close_backend()

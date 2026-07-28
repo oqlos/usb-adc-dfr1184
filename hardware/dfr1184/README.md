@@ -1,5 +1,15 @@
 # DFR1184 — UART Raspberry Pi 3
 
+[Powrót do inwentarza sprzętu](../README.md)
+
+## Dokumenty i materiały
+
+- [oficjalny schemat DFR1184, PDF](datasheets/DFR1184-schematic-v1.0.pdf);
+- [schemat elektryczny, PNG](images/schematic.png);
+- [wymiary i rozmieszczenie złączy](images/dimensions.png);
+- [przykład połączenia UART przez konwerter USB](images/uart-usb-example.png);
+- [snapshot oficjalnej biblioteki DFRobot](library/DFRobot_ADS1115_0_10V/README.md).
+
 ## Parametry
 
 DFRobot DFR1184 wykorzystuje ADS1115 i udostępnia dwa wejścia napięciowe 0–10 V.
@@ -35,6 +45,21 @@ pin 10 RXD  ──────────────────────�
 Sygnał 0–10 V (+) ─────────────────── AIN1 albo AIN2
 Masa sygnału      ─────────────────── GND wejściowe
 ```
+
+## Podłączenie sensora z wyjściem napięciowym
+
+Poniższe połączenie jest poprawne dopiero po potwierdzeniu w karcie katalogowej,
+że sensor ma pojedyncze wyjście napięciowe mieszczące się w zakresie 0–10 V:
+
+```text
+sensor OUT / SIGNAL ─────────────── AIN1 albo AIN2
+sensor GND / 0 V    ─────────────── GND wejściowe DFR1184
+sensor VCC / +Vs    ─────────────── zasilacz zgodny z kartą sensora
+```
+
+Nie wolno wyznaczać funkcji przewodów wyłącznie na podstawie ich kolorów.
+Sensor wymagający 12 V lub 24 V musi korzystać z odpowiedniego zasilacza
+zewnętrznego. Wyjścia 4–20 mA wymagają osobnego przetwornika prąd–napięcie.
 
 ## Konfiguracja UART w Raspberry Pi OS
 
@@ -90,3 +115,9 @@ rzeczywista rozdzielczość fizyczna toru.
 3. DFR1184 nie zapewnia separacji galwanicznej od masy Raspberry Pi.
 4. Nie zmieniaj przełącznika I²C/UART pod zasilaniem.
 5. Nie podawaj logiki 5 V na RXD Raspberry Pi.
+
+## Źródła producenta
+
+- [DFRobot Wiki — DFR1184](https://wiki.dfrobot.com/dfr1184/)
+- [DFRobot — strona produktu](https://www.dfrobot.com/product-2917.html)
+- [DFRobot_ADS1115_0_10V — GitHub](https://github.com/DFRobot/DFRobot_ADS1115_0_10V)

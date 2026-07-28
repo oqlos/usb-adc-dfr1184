@@ -1,22 +1,11 @@
 # usb-adc-dfr1184
 
-![img.png](img.png)
-https://kamami.pl/przetworniki-ac-i-ca/1201305-modul-adc-dfrobot-dfr1184-gravity-010-v-15-bit-dwukanalowy-do-arduino-raspberry-pi-esp32-5902186330115.html
-
-
-![img_1.png](img_1.png)
-https://dfimg.dfrobot.com/wiki/19341/DFR1184_2-ch-15bit-0-10v-adc_schematics_1.0.pdf
-
-![img_2.png](img_2.png)
-
-https://www.arduitronics.com/product/4446/gravity-uart-i2c-nfc-module-%E0%B9%81%E0%B8%97%E0%B9%89%E0%B8%88%E0%B8%B2%E0%B8%81-dfrobot
-
-![img_3.png](img_3.png)
-
-![img_4.png](img_4.png)
-
 Sterownik i lokalny adapter HTTP dla dwukanałowego modułu **DFRobot DFR1184
 Gravity 0–10 V**, podłączonego bezpośrednio do **UART Raspberry Pi 3**.
+
+Kompletny inwentarz używanego sprzętu, lokalne kopie kart katalogowych, schematy,
+zdjęcia i stan dokumentacji sensorów ciśnienia znajdują się w
+[hardware/](hardware/README.md).
 
 Docelowy stos wejść OqlOS używa dwóch niezależnych transportów:
 
@@ -45,21 +34,13 @@ python3 -m venv .venv
 
 Użytkownik usługi musi mieć dostęp do UART, zwykle przez grupę `dialout`. Konsolę
 systemową na porcie szeregowym należy wyłączyć, a UART włączyć w `raspi-config`.
-Dokładna procedura jest w [docs/HARDWARE.md](docs/HARDWARE.md).
+Dokładna procedura jest w
+[hardware/dfr1184/README.md](hardware/dfr1184/README.md).
 
 ## Podłączenie
 
-Przełącz DFR1184 do trybu **UART przy wyłączonym zasilaniu**.
-
-| Raspberry Pi 3 | Pin | DFR1184 |
-|---|---:|---|
-| 3V3 | 1 | VCC |
-| GND | 6 | GND |
-| GPIO14 / TXD | 8 | C/R / RXD |
-| GPIO15 / RXD | 10 | D/T / TXD |
-
-TX i RX są skrzyżowane. Zasilanie 3,3 V utrzymuje poziomy UART bezpieczne dla GPIO
-Raspberry Pi; wejścia Pi nie tolerują logiki 5 V.
+Schemat pin po pinie, zasady zasilania i wariant podłączenia sensora napięciowego
+są w [dokumentacji sprzętowej DFR1184](hardware/dfr1184/README.md).
 
 ## CLI
 
@@ -106,17 +87,9 @@ Gotowa jednostka użytkownika systemd dla BoardNet znajduje się w
 
 ## Ograniczenia
 
-- `0,01 mV` jest jednostką raportowania protokołu, nie fizyczną rozdzielczością.
-  Producent podaje około `0,3125 mV` dla 15 bitów.
-- DFR1184 mierzy napięcie stałe 0–10 V i nie jest wejściem 4–20 mA.
-- Moduł nie zapewnia separacji galwanicznej od Raspberry Pi.
-- Nie wolno podawać logiki 5 V na wejście UART Raspberry Pi.
-
-## Źródła
-
-- [DFRobot Wiki — DFR1184](https://wiki.dfrobot.com/dfr1184/)
-- [Oficjalna biblioteka i protokół DFRobot](https://github.com/DFRobot/DFRobot_ADS1115_0_10V)
-- [Kamami — DFR1184](https://kamami.pl/przetworniki-ac-i-ca/1201305-modul-adc-dfrobot-dfr1184-gravity-010-v-15-bit-dwukanalowy-do-arduino-raspberry-pi-esp32-5902186330115.html)
+Ograniczenia elektryczne i źródła producentów są utrzymywane w jednym miejscu:
+[hardware/](hardware/README.md). `0,01 mV` pozostaje jednostką raportowania
+protokołu, a nie fizyczną rozdzielczością toru.
 
 ## Testy
 

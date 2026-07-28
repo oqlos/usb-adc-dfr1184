@@ -60,16 +60,33 @@ class SerialDFR1184Backend:
         self.timeout = timeout
         self.command_delay = command_delay
         self.serial_factory = serial_factory or _default_serial_factory
+        self._serial_port: Any | None = None
 
     def _open(self) -> Any:
+        if self._serial_port is not None and getattr(
+            self._serial_port, "is_open", True
+        ):
+            return self._serial_port
         try:
-            return self.serial_factory(self.port, self.baudrate, self.timeout)
+            self._serial_port = self.serial_factory(
+                self.port,
+                self.baudrate,
+                self.timeout,
+            )
+            return self._serial_port
         except DFR1184UnavailableError:
             raise
         except (OSError, RuntimeError, ValueError) as error:
             raise DFR1184UnavailableError(
                 f"cannot open DFR1184 UART {self.port}: {error}"
             ) from error
+
+    def close(self) -> None:
+        serial_port = self._serial_port
+        self._serial_port = None
+        if serial_port is not None:
+            with suppress(OSError, RuntimeError):
+                serial_port.close()
 
     def _read_exact(self, serial_port: Any, size: int) -> bytes:
         result = bytearray()
@@ -93,9 +110,9 @@ class SerialDFR1184Backend:
             serial_port.write(b"AT\r\n")
             serial_port.flush()
             return self._read_exact(serial_port, len(UART_RESPONSE_OK)) == UART_RESPONSE_OK
-        finally:
-            with suppress(OSError, RuntimeError):
-                serial_port.close()
+        except Exception:
+            self.close()
+            raise
 
     def read_raw(self, channel: int) -> int:
         serial_port = self._open()
@@ -112,6 +129,6 @@ class SerialDFR1184Backend:
             if self.command_delay:
                 time.sleep(self.command_delay)
             return int.from_bytes(self._read_exact(serial_port, 3), "big", signed=False)
-        finally:
-            with suppress(OSError, RuntimeError):
-                serial_port.close()
+        except Exception:
+            self.close()
+            raise
