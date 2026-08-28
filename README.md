@@ -7,12 +7,13 @@ Kompletny inwentarz używanego sprzętu, lokalne kopie kart katalogowych, schema
 zdjęcia i stan dokumentacji sensorów ciśnienia znajdują się w
 [hardware/](hardware/README.md).
 
-Docelowy stos wejść OqlOS używa dwóch niezależnych transportów:
+Docelowy stos wejść OqlOS używa trzech niezależnych transportów. ADS1100 jest
+pojedynczym wejściem na StackNet i domyślnie zastępuje DFR1184 AIN1:
 
 | Wejście OqlOS | Źródło | Transport | Zakres nominalny |
 |---|---|---|---|
 | `ai01` | MCP2221A G1 | USB HID | 0–3,3 V |
-| `ai02` | DFR1184 AIN1 | RPi3 UART | 0–10 V |
+| `ai02` | M5Stack Unit ADC / ADS1100 AIN | StackNet HTTP + I²C | 0–8,192 V liniowo |
 | `ai03` | DFR1184 AIN2 | RPi3 UART | 0–10 V |
 
 Projekt zapewnia:
@@ -77,7 +78,11 @@ usb-adc-stack-api
 curl http://127.0.0.1:8214/api/v1/adc
 ```
 
-Wspólna usługa mapuje `ai01` na USB MCP2221A oraz `ai02–ai03` na UART DFR1184.
+Wspólna usługa mapuje `ai01` na USB MCP2221A, `ai02` na ADS1100 przez StackNet
+oraz `ai03` na DFR1184 AIN2. Ustawienia `STACKNET_ADS1100_URL` i
+`STACKNET_ADS1100_CHANNEL` (`2` albo `3`) pozwalają przełączyć logiczny kanał
+podczas działania bez reflasha. Pusty URL zachowuje starsze mapowanie obu kanałów
+DFR1184. Jeden ADS1100 nie może dostarczać dwóch niezależnych ciśnień.
 Szczegóły zawiera [docs/OQLOS_INTEGRATION.md](docs/OQLOS_INTEGRATION.md).
 Nie uruchamiaj jednocześnie wspólnej i samodzielnych usług na tych samych fizycznych
 urządzeniach.

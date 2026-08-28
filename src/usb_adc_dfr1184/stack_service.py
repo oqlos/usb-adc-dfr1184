@@ -9,6 +9,7 @@ from typing import Any, TypeVar
 from .driver import DFR1184, DFR1184Config
 from .errors import DFR1184Error
 from .stack import ADCStack
+from .stacknet_ads1100 import StackNetADS1100, StackNetADS1100Config
 
 T = TypeVar("T")
 
@@ -29,13 +30,29 @@ def create_app(stack: ADCStack | None = None) -> Any:
     except ImportError as error:
         raise RuntimeError("install the API dependencies with: pip install '.[api]'") from error
 
-    adc_stack = stack or ADCStack(
-        dfr1184=DFR1184(dfr1184_config_from_environment())
-    )
+    if stack is None:
+        stacknet_url = os.getenv("STACKNET_ADS1100_URL", "").strip()
+        stacknet = (
+            StackNetADS1100(
+                StackNetADS1100Config(
+                    base_url=stacknet_url,
+                    timeout=float(os.getenv("STACKNET_ADS1100_TIMEOUT", "0.8")),
+                )
+            )
+            if stacknet_url
+            else None
+        )
+        adc_stack = ADCStack(
+            dfr1184=DFR1184(dfr1184_config_from_environment()),
+            stacknet_ads1100=stacknet,
+            stacknet_channel=int(os.getenv("STACKNET_ADS1100_CHANNEL", "2")) if stacknet else None,
+        )
+    else:
+        adc_stack = stack
     app = FastAPI(
         title="OqlOS USB ADC Stack",
-        version="0.2.0",
-        description="MCP2221A USB G1 and Raspberry Pi UART DFR1184 AIN1/AIN2 API",
+        version="0.3.0",
+        description="MCP2221A, StackNet ADS1100 and Raspberry Pi UART DFR1184 ADC API",
     )
 
     def execute(operation: Callable[[], T]) -> T:

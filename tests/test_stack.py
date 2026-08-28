@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sys
 import time
 from dataclasses import dataclass
@@ -54,6 +53,24 @@ class HealthyDFR1184(DFR1184):
         return HealthStatus(True, "connected", "test", "uart", self.config.serial_port)
 
 
+class FakeStackNetADS1100:
+    @dataclass
+    class Reading:
+        volts: float
+
+        def to_dict(self) -> dict[str, Any]:
+            return {
+                "volts": self.volts,
+                "transport": "stacknet-http+i2c",
+            }
+
+    def read_adc(self, channel: int = 1, samples: int = 1) -> Reading:
+        return self.Reading(4.2)
+
+    def health(self) -> FakeMCPHealth:
+        return FakeMCPHealth()
+
+
 def make_stack() -> ADCStack:
     dfr1184 = HealthyDFR1184(backend=FakeBackend([250_000, 750_000]))
     return ADCStack(mcp2221=FakeMCP2221(), dfr1184=dfr1184)
@@ -88,6 +105,36 @@ def test_stack_health_and_validation() -> None:
     assert stack.health()["ok"] is True
     with pytest.raises(ValueError, match="1, 2 or 3"):
         stack.read_adc(4)
+
+
+def test_stacknet_ads1100_replaces_only_medium_pressure_channel() -> None:
+    dfr1184 = HealthyDFR1184(backend=FakeBackend([250_000, 750_000]))
+    stack = ADCStack(
+        mcp2221=FakeMCP2221(),
+        dfr1184=dfr1184,
+        stacknet_ads1100=FakeStackNetADS1100(),
+        stacknet_channel=2,
+    )
+
+    readings = stack.read_all_adc()
+
+    assert readings[1]["logical_name"] == "ai02"
+    assert readings[1]["adapter"] == "stacknet-adc-ads1100"
+    assert readings[1]["physical_input"] == "ADS1100.AIN"
+    assert readings[1]["reading"]["volts"] == 4.2
+    assert readings[2]["adapter"] == "usb-adc-dfr1184"
+    assert readings[2]["physical_input"] == "DFR1184.AIN2"
+    assert readings[2]["reading"]["volts"] == 2.5
+    assert "stacknet-adc-ads1100" in stack.health()["components"]
+
+
+def test_stacknet_ads1100_channel_requires_a_driver() -> None:
+    with pytest.raises(ValueError, match="configured together"):
+        ADCStack(
+            mcp2221=FakeMCP2221(),
+            dfr1184=HealthyDFR1184(backend=FakeBackend([250_000, 750_000])),
+            stacknet_channel=2,
+        )
 
 
 def test_slow_dfr1184_does_not_block_mcp2221_batch_read(monkeypatch: pytest.MonkeyPatch) -> None:

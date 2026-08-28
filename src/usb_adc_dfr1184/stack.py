@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import concurrent.futures
 import os
-from typing import Any, Callable, Protocol, TypeVar, cast
+from collections.abc import Callable
+from typing import Any, Protocol, TypeVar, cast
 
 from .driver import DFR1184
 
@@ -28,7 +29,9 @@ def _run_with_timeout(
         executor.shutdown(wait=False, cancel_futures=True)
 
 
-def _degraded_channel(channel: int, adapter: str, physical_input: str, error: str) -> dict[str, Any]:
+def _degraded_channel(
+    channel: int, adapter: str, physical_input: str, error: str
+) -> dict[str, Any]:
     return {
         "logical_channel": channel,
         "logical_name": f"ai{channel:02d}",
@@ -52,6 +55,12 @@ class SerializableHealth(Protocol):
 
 class MCP2221Driver(Protocol):
     def read_adc(self, channel: int, samples: int = 1) -> SerializableReading: ...
+
+    def health(self) -> SerializableHealth: ...
+
+
+class SingleADCDriver(Protocol):
+    def read_adc(self, channel: int = 1, samples: int = 1) -> SerializableReading: ...
 
     def health(self) -> SerializableHealth: ...
 
@@ -89,9 +98,19 @@ class ADCStack:
         self,
         mcp2221: MCP2221Driver | None = None,
         dfr1184: DFR1184 | None = None,
+        stacknet_ads1100: SingleADCDriver | None = None,
+        stacknet_channel: int | None = None,
     ) -> None:
         self.mcp2221 = mcp2221 or _default_mcp2221()
         self.dfr1184 = dfr1184 or DFR1184()
+        if stacknet_channel not in (None, 2, 3):
+            raise ValueError("STACKNET_ADS1100_CHANNEL must be 2 or 3")
+        if (stacknet_ads1100 is None) != (stacknet_channel is None):
+            raise ValueError(
+                "StackNet ADS1100 driver and logical channel must be configured together"
+            )
+        self.stacknet_ads1100 = stacknet_ads1100
+        self.stacknet_channel = stacknet_channel
 
     @staticmethod
     def _channel(channel: int) -> int:
@@ -102,6 +121,8 @@ class ADCStack:
     def _read_unlocked(self, channel: int, samples: int) -> dict[str, Any]:
         if channel == 1:
             reading = self.mcp2221.read_adc(1, samples=samples)
+        elif channel == self.stacknet_channel and self.stacknet_ads1100 is not None:
+            reading = self.stacknet_ads1100.read_adc(1, samples=samples)
         else:
             reading = self.dfr1184.read_adc(channel - 1, samples=samples)
         return self._format_reading(channel, reading)
@@ -111,9 +132,19 @@ class ADCStack:
         channel: int,
         reading: SerializableReading,
     ) -> dict[str, Any]:
-        adapter = "usb-adc-mcp2221" if channel == 1 else "usb-adc-dfr1184"
-        physical_input = "MCP2221A.G1" if channel == 1 else f"DFR1184.AIN{channel - 1}"
-        nominal_range = [0, 3.3] if channel == 1 else [0, 10]
+        adapter = str(reading.to_dict().get("transport", ""))
+        if adapter == "stacknet-http+i2c":
+            adapter = "stacknet-adc-ads1100"
+            physical_input = "ADS1100.AIN"
+            nominal_range = [0, 8.192]
+        elif channel == 1:
+            adapter = "usb-adc-mcp2221"
+            physical_input = "MCP2221A.G1"
+            nominal_range = [0, 3.3]
+        else:
+            adapter = "usb-adc-dfr1184"
+            physical_input = f"DFR1184.AIN{channel - 1}"
+            nominal_range = [0, 10]
         return {
             "logical_channel": channel,
             "logical_name": f"ai{channel:02d}",
@@ -132,6 +163,13 @@ class ADCStack:
     def read_all_adc(self, samples: int = 1) -> list[dict[str, Any]]:
         if not 1 <= samples <= 10_000:
             raise ValueError("samples must be between 1 and 10000")
+        if self.stacknet_ads1100 is not None:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                futures = [
+                    executor.submit(self._read_channel_for_batch, channel, samples)
+                    for channel in (1, 2, 3)
+                ]
+                return [future.result() for future in futures]
         # MCP2221 and DFR1184 are independent transports and may run in
         # parallel. AIN1/AIN2 share one UART, so read them as one serialized
         # operation instead of creating competing per-channel worker pools.
@@ -167,8 +205,15 @@ class ADCStack:
         ]
 
     def _read_channel_for_batch(self, channel: int, samples: int) -> dict[str, Any]:
-        adapter = "usb-adc-mcp2221" if channel == 1 else "usb-adc-dfr1184"
-        physical_input = "MCP2221A.G1" if channel == 1 else f"DFR1184.AIN{channel - 1}"
+        if channel == self.stacknet_channel:
+            adapter = "stacknet-adc-ads1100"
+            physical_input = "ADS1100.AIN"
+        elif channel == 1:
+            adapter = "usb-adc-mcp2221"
+            physical_input = "MCP2221A.G1"
+        else:
+            adapter = "usb-adc-dfr1184"
+            physical_input = f"DFR1184.AIN{channel - 1}"
         try:
             return _run_with_timeout(lambda: self._read_unlocked(channel, samples))
         except concurrent.futures.TimeoutError:
@@ -204,12 +249,18 @@ class ADCStack:
             "usb-adc-dfr1184",
             self.dfr1184.health,
         )
-        ok = bool(mcp_health.get("ok")) and bool(dfr_health.get("ok"))
+        components = {
+            "usb-adc-mcp2221": mcp_health,
+            "usb-adc-dfr1184": dfr_health,
+        }
+        if self.stacknet_ads1100 is not None:
+            components["stacknet-adc-ads1100"] = self._component_health(
+                "stacknet-adc-ads1100",
+                self.stacknet_ads1100.health,
+            )
+        ok = all(bool(component.get("ok")) for component in components.values())
         return {
             "ok": ok,
             "status": "connected" if ok else "degraded",
-            "components": {
-                "usb-adc-mcp2221": mcp_health,
-                "usb-adc-dfr1184": dfr_health,
-            },
+            "components": components,
         }
