@@ -93,13 +93,17 @@ class StackNetADS1100:
         if any(item.get("saturated") is True or item.get("ok") is False for item in values):
             raise RuntimeError("StackNet ADS1100 input is saturated or unhealthy")
         try:
-            volts = [float(item["volts"]) for item in values]
+            connector_volts = [float(item["volts"]) for item in values]
             adc_volts = [float(item["adc_voltage"]) for item in values]
             raw = [int(item["raw"]) for item in values]
         except (KeyError, TypeError, ValueError) as error:
             raise RuntimeError("StackNet ADS1100 response is missing numeric fields") from error
-        if not all(math.isfinite(value) and 0 <= value <= 8.25 for value in volts):
+        # A grounded ADS1100 can report a few signed counts below zero.  The
+        # Unit ADC connector is single-ended, so tolerate only that small
+        # offset and normalize it to the physical 0 V floor.
+        if not all(math.isfinite(value) and -0.01 <= value <= 8.25 for value in connector_volts):
             raise RuntimeError("StackNet ADS1100 returned an implausible connector voltage")
+        volts = [max(0.0, value) for value in connector_volts]
         return StackNetADS1100Reading(
             channel=1,
             input_name="AIN",

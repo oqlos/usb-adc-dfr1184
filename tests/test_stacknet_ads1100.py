@@ -75,6 +75,29 @@ def test_rejects_saturated_reading(monkeypatch: pytest.MonkeyPatch) -> None:
     assert driver.health().ok is False
 
 
+def test_clamps_small_negative_zero_offset(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = {
+        "present": True,
+        "ok": True,
+        "raw": -18,
+        "adc_voltage": -0.001125,
+        "volts": -0.0045,
+        "saturated": False,
+    }
+    monkeypatch.setattr(
+        driver_module,
+        "urlopen",
+        lambda *_args, **_kwargs: FakeResponse(payload),
+    )
+    driver = StackNetADS1100(StackNetADS1100Config("http://stacknet.local:8080"))
+
+    reading = driver.read_adc()
+
+    assert reading.volts == 0.0
+    assert reading.raw == -18
+    assert driver.health().ok is True
+
+
 def test_requires_absolute_http_url() -> None:
     with pytest.raises(ValueError, match="absolute"):
         StackNetADS1100Config("stacknet.local:8080")
